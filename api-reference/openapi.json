@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "OpenAPI Plant Store",
+    "title": "AutoCaption API",
     "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
     "license": {
       "name": "MIT"
@@ -10,85 +10,39 @@
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "http://api.autocaption.com/v1"
     }
   ],
   "security": [
     {
-      "bearerAuth": []
+      "ApiKeyAuth": []
     }
   ],
   "paths": {
-    "/plants": {
+    "/upload": {
       "get": {
-        "description": "Returns all plants from the system that the user has access to",
+        "summary": "Upload file",
+        "description": "Returns a unique file identifier, a URL, and fields required for uploading a file to S3.",
         "parameters": [
           {
-            "name": "limit",
+            "name": "file",
             "in": "query",
-            "description": "The maximum number of results to return",
+            "description": "The name of the file to be uploaded.",
+            "required": true,
+            "style": "form",
+            "explode": true,
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Plant response",
+            "description": "A map of fields needed to upload the file, including the pre-signed URL.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/v1_upload_response_200"
                 }
               }
             }
@@ -96,32 +50,229 @@
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
+    "/transcript": {
+      "post": {
+        "summary": "Transcript a video",
+        "description": "Accepts a file name and language, and returns a job ID for the transcription task.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/v1_transcript_body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully started the transcription job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/v1_transcript_response_200"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. The request body is missing or malformed."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        }
+      }
+    },
+    "/transcript/{jobId}": {
+      "get": {
+        "summary": "Get Transcription Result",
+        "description": "Retrieves the result of a transcription job by its ID. Words are only included if the job status is COMPLETED.",
         "parameters": [
           {
-            "name": "id",
+            "name": "jobId",
             "in": "path",
-            "description": "ID of plant to delete",
             "required": true,
+            "description": "The unique identifier of the transcription job.",
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           }
         ],
         "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
+          "200": {
+            "description": "Transcription job details.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "The status of the transcription job.",
+                      "enum": [
+                        "COMPLETED",
+                        "IN_QUEUE",
+                        "FAILED",
+                        "IN_PROGRESS"
+                      ]
+                    },
+                    "words": {
+                      "type": "array",
+                      "description": "The transcribed words, available only if the job status is COMPLETED.",
+                      "items": {
+                        "$ref": "#/components/schemas/Word"
+                      },
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templates": {
+      "get": {
+        "summary": "Get Templates",
+        "description": "Retrieves a list of templates available.",
+        "responses": {
+          "200": {
+            "description": "A list of templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Template"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/templates/{templateId}": {
+      "get": {
+        "summary": "Get Specific Template",
+        "description": "Retrieves details of a specific template by its ID.",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the template.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detailed information about the template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fonts": {
+      "get": {
+        "summary": "Get Fonts List",
+        "description": "Retrieves a list of available font names for the specified language.",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": true,
+            "description": "Language code to filter the fonts.",
+            "schema": {
+              "type": "string",
+              "example": "fr"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of font names available for the specified language.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": [
+                    "Roboto",
+                    "The Bold",
+                    "Lemon Milk",
+                    "Heavitas",
+                    "Business Growth",
+                    "Built Titling",
+                    "Montserrat Bold"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generate": {
+      "post": {
+        "summary": "Generate Video",
+        "description": "Generates a video based on provided input, words, and configuration, then returns a URL to download the generated file.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "description": "Identifier of the input file for generation."
+                  },
+                  "words": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Word"
+                    },
+                    "description": "Array of words to be included in the generated file."
+                  },
+                  "config": {
+                    "$ref": "#/components/schemas/TemplateConfig"
+                  }
+                },
+                "required": [
+                  "input",
+                  "words",
+                  "config"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "URL to download the generated file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "description": "Direct URL to download the generated file."
+                    }
+                  }
                 }
               }
             }
@@ -132,63 +283,312 @@
   },
   "components": {
     "schemas": {
-      "Plant": {
+      "v1_upload_response_200": {
         "required": [
-          "name"
+          "fields",
+          "file",
+          "url"
         ],
         "type": "object",
         "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
+          "file": {
+            "type": "string",
+            "description": "The unique identifier for the file, used as the file name in S3."
           },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
-          }
-        }
-      },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
+          "url": {
+            "type": "string",
+            "description": "The URL of the S3 bucket to which the file should be uploaded."
           },
-          {
-            "required": [
-              "id"
-            ],
+          "fields": {
             "type": "object",
             "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
+              "key": {
+                "type": "string"
+              },
+              "bucket": {
+                "type": "string"
+              },
+              "X-Amz-Algorithm": {
+                "type": "string"
+              },
+              "X-Amz-Credential": {
+                "type": "string"
+              },
+              "X-Amz-Date": {
+                "type": "string"
+              },
+              "Policy": {
+                "type": "string"
+              },
+              "X-Amz-Signature": {
+                "type": "string"
               }
-            }
+            },
+            "description": "A map containing all the fields required for the upload server."
           }
-        ]
+        }
       },
-      "Error": {
+      "v1_transcript_body": {
         "required": [
-          "error",
-          "message"
+          "fileName",
+          "lang"
         ],
         "type": "object",
         "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
+          "fileName": {
+            "type": "string",
+            "description": "The name of the file to be transcribed, including its extension."
           },
-          "message": {
-            "type": "string"
+          "lang": {
+            "type": "string",
+            "description": "The language code of the audio in the file."
           }
         }
+      },
+      "v1_transcript_response_200": {
+        "required": [
+          "job_id"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The unique identifier for the transcription job."
+          }
+        }
+      },
+      "Word": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "number",
+            "format": "float",
+            "description": "Start time of the word in seconds."
+          },
+          "end": {
+            "type": "number",
+            "format": "float",
+            "description": "End time of the word in seconds."
+          },
+          "word": {
+            "type": "string",
+            "description": "The word as transcribed."
+          },
+          "punctuated_word": {
+            "type": "string",
+            "description": "The word with punctuation."
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "word",
+          "punctuated_word"
+        ]
+      },
+      "Template": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The unique identifier for the template. Initially numeric, but will accommodate UUIDs as well."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the template."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "TemplateDetail": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "The display text of the template."
+          },
+          "config": {
+            "$ref": "#/components/schemas/TemplateConfig"
+          }
+        }
+      },
+      "TemplateConfig": {
+        "type": "object",
+        "properties": {
+          "colors": {
+            "$ref": "#/components/schemas/TemplateColors"
+          },
+          "modes": {
+            "$ref": "#/components/schemas/TemplateModes"
+          },
+          "linesCount": {
+            "type": "integer"
+          },
+          "wordsPerLineCount": {
+            "type": "integer"
+          },
+          "wordHasBackground": {
+            "type": "boolean"
+          },
+          "wordHasShadow": {
+            "type": "boolean"
+          },
+          "wordHasCustomShadowColor": {
+            "type": "boolean"
+          },
+          "emojiAnimated": {
+            "type": "boolean"
+          },
+          "capitalizationType": {
+            "$ref": "#/components/schemas/CapitalizationTypeEnum"
+          }
+        }
+      },
+      "TemplateColors": {
+        "type": "object",
+        "properties": {
+          "defaultColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          },
+          "spokenColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          },
+          "hilightColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          },
+          "strokeColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          },
+          "backgroundColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          },
+          "shadowColor": {
+            "$ref": "#/components/schemas/ColorArray"
+          }
+        }
+      },
+      "ColorArray": {
+        "type": "object",
+        "properties": {
+          "colors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Color"
+            }
+          }
+        }
+      },
+      "Color": {
+        "type": "object",
+        "properties": {
+          "r": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "g": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "b": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      },
+      "TemplateModes": {
+        "type": "object",
+        "properties": {
+          "displayMode": {
+            "$ref": "#/components/schemas/DisplayModeEnum"
+          },
+          "displayWords": {
+            "$ref": "#/components/schemas/DisplayWordsEnum"
+          },
+          "spokenMode": {
+            "$ref": "#/components/schemas/SpokenModeEnum"
+          },
+          "effectType": {
+            "$ref": "#/components/schemas/EffectTypeEnum"
+          },
+          "effectMode": {
+            "$ref": "#/components/schemas/EffectModeEnum"
+          },
+          "displayEmojis": {
+            "$ref": "#/components/schemas/DisplayEmojiEnum"
+          }
+        }
+      },
+      "DisplayModeEnum": {
+        "type": "string",
+        "enum": [
+          "ALL",
+          "LINE",
+          "WORD"
+        ]
+      },
+      "DisplayWordsEnum": {
+        "type": "string",
+        "enum": [
+          "PUNCTUATION",
+          "FIXED_COUNT"
+        ]
+      },
+      "DisplayEmojiEnum": {
+        "type": "string",
+        "enum": [
+          "WORD",
+          "LINE"
+        ]
+      },
+      "SpokenModeEnum": {
+        "type": "string",
+        "enum": [
+          "LINE",
+          "WORD"
+        ]
+      },
+      "EffectTypeEnum": {
+        "type": "string",
+        "enum": [
+          "DISABLED",
+          "POP",
+          "BIG",
+          "SMOOTH_POP",
+          "FADE",
+          "FONT"
+        ]
+      },
+      "EffectModeEnum": {
+        "type": "string",
+        "enum": [
+          "LINE",
+          "WORD",
+          "GROUP"
+        ]
+      },
+      "CapitalizationTypeEnum": {
+        "type": "string",
+        "enum": [
+          "UPPERCASE",
+          "LOWERCASE",
+          "TITLECASE"
+        ]
       }
     },
     "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
       }
     }
   }
