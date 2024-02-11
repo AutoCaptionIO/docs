@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "http://api.autocaption.com/v1"
+      "url": "https://api.autocaption.com/v1"
     }
   ],
   "security": [
