@@ -10,7 +10,7 @@ import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 
-const API_ENDPOINT = 'http://api.autocaption.io/v1'
+const API_ENDPOINT = 'https://api.autocaption.io/v1'
 const API_KEY = 'YOUR_API_KEY'
 
 const videoName = 'video.mp4'
@@ -71,10 +71,16 @@ const generateVideo = async (file, config, words) => {
     }).then(res => res.data);
 }
 
+// Get fonts list
+const getFontsList = async () => {
+    return axiosInstance.get(`/fonts?lang=${videoLang}`).then(res => res.data);
+}
+
 const main = async () => {
     try {
         const { file, url, fields } = await getSignedUrlData();
         await uploadVideo(url, fields);
+        console.log('file uploaded')
         const { job_id } = await transcriptVideo(file, videoLang);
 
         // Initial check without delay
@@ -85,14 +91,37 @@ const main = async () => {
             if (transcriptResponse.status == 'FAILED') {
                 throw new Error('Transcription failed'); // Throws an error to exit the loop and catch block
             }
+
             await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
             transcriptResponse = await getTranscriptStatus(job_id); // Update the response
         }
 
+        console.log('Transcript ready');
+
         // Get the template DEFAULT
         const { config } = await getTemplateById('0');
 
+        /* 
+            - If the template doesn't have a font, get the list of fonts and use the first one
+            /!\ Set a value to the config.font otherwise it will throw an error during the video generation
+        */
+        if (config.font == undefined) {
+            const fonts = await getFontsList();
+            config.font = fonts[0];
+        }
+
+        /* 
+            - Instead of a custom template, the default templates don't have the sizes defined, so we need to define them.
+            /!\ Set a value to the config.sizes.fontSize otherwise it will throw an error during the video generation
+        */
+        config.sizes = {
+            fontSize: 56,
+            strokeSize: 15,
+            //...
+        };
+
         // Generate the video and wait the download url - Can take a few minutes
+        console.log('Generating video...');
         const { download_url } = await generateVideo(file, config, transcriptResponse.words);
         console.log(download_url);
     } catch (error) {
@@ -102,12 +131,12 @@ const main = async () => {
 
 main();
 ```
-    ```python Python
+```python Python
 import requests
-import os
 from requests_toolbelt.multipart.encoder import MultipartEncoder
+import os
 
-API_ENDPOINT = 'http://api.autocaption.io/v1'
+API_ENDPOINT = 'https://api.autocaption.io/v1'
 API_KEY = 'YOUR_API_KEY'
 
 video_name = 'video.mp4'
@@ -117,49 +146,55 @@ video_path = os.path.join('./', video_name)
 session = requests.Session()
 session.headers.update({'x-api-key': API_KEY})
 
+# Get signed url to upload video
 def get_signed_url_data():
-    response = session.get(f'{API_ENDPOINT}/signedUrl?file={video_name}')
-    return response.json()
+    return session.get(f'{API_ENDPOINT}/signedUrl?file={video_name}').json()
 
+# Upload video to signed url
 def upload_video(url, fields):
-    with open(video_path, 'rb') as video_file:
-        fields['file'] = ('filename', video_file, 'video/mp4')
-        m = MultipartEncoder(fields=fields)
-        headers = {'Content-Type': m.content_type}
-        response = requests.post(url, data=m, headers=headers)
-        if response.status_code != 200:
-            raise Exception("Upload failed")
+    m = MultipartEncoder(fields=fields)
+    m.fields['file'] = (video_name, open(video_path, 'rb'), 'video/mp4')
+    response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
+    response.raise_for_status()
 
+# Transcript video
 def transcript_video(file_key, lang):
-    response = session.post(f'{API_ENDPOINT}/transcript', json={
+    return session.post(f'{API_ENDPOINT}/transcript', json={
         'input': file_key,
         'language': lang
-    })
-    return response.json()
+    }).json()
 
+# Get transcript status
 def get_transcript_status(job_id):
-    response = session.get(f'{API_ENDPOINT}/transcript/{job_id}')
-    if response.status_code != 200:
-        return response.json()
-    return response.json()
+    try:
+        return session.get(f'{API_ENDPOINT}/transcript/{job_id}').json()
+    except requests.exceptions.RequestException as e:
+        return e.response.json()
 
-def get_template_by_id(template_id):
-    response = session.get(f'{API_ENDPOINT}/templates/{template_id}')
-    return response.json()
+# Get template by id
+def get_template_by_id(id):
+    return session.get(f'{API_ENDPOINT}/templates/{id}').json()
 
+# Generate video
 def generate_video(file, config, words):
-    response = session.post(f'{API_ENDPOINT}/generate', json={
+    return session.post(f'{API_ENDPOINT}/generate', json={
         'input': file,
         'config': config,
         'words': words
-    })
-    return response.json()
+    }).json()
+
+# Get fonts list
+def get_fonts_list():
+    return session.get(f'{API_ENDPOINT}/fonts?lang={video_lang}').json()
 
 def main():
     try:
         signed_url_data = get_signed_url_data()
-        file, url, fields = signed_url_data['file'], signed_url_data['url'], signed_url_data['fields']
+        file = signed_url_data['file']
+        url = signed_url_data['url']
+        fields = signed_url_data['fields']
         upload_video(url, fields)
+        print('file uploaded')
         transcript_response = transcript_video(file, video_lang)
         job_id = transcript_response['job_id']
 
@@ -168,139 +203,39 @@ def main():
 
         # Loop until the transcript is ready or an error occurs
         while transcript_status['status'] != 'COMPLETED':
-            if 'error' in transcript_status:
-                raise Exception(transcript_status['error'])
-            # Wait for 5 seconds
-            time.sleep(5)
-            transcript_status = get_transcript_status(job_id)
+            if transcript_status['status'] == 'FAILED':
+                raise Exception('Transcription failed')  # Throws an error to exit the loop and catch block
+
+            time.sleep(5)  # Wait for 5 seconds
+            transcript_status = get_transcript_status(job_id)  # Update the response
+
+        print('Transcript ready')
 
         # Get the template DEFAULT
         template_response = get_template_by_id('0')
         config = template_response['config']
 
-        # Generate the video and wait for the download url - Can take a few minutes
-        generate_response = generate_video(file, config, transcript_status['words'])
-        download_url = generate_response['download_url']
+        # If the template doesn't have a font, get the list of fonts and use the first one
+        if 'font' not in config:
+            fonts = get_fonts_list()
+            config['font'] = fonts[0]
+
+        # Set values for config.sizes
+        config['sizes'] = {
+            'fontSize': 56,
+            'strokeSize': 15,
+            #...
+        }
+
+        # Generate the video and wait the download url - Can take a few minutes
+        print('Generating video...')
+        video_generation_response = generate_video(file, config, transcript_status['words'])
+        download_url = video_generation_response['download_url']
         print(download_url)
     except Exception as error:
-        print(f"An error occurred: {error}")
+        print("An error occurred:", error)
 
 if __name__ == '__main__':
     main()
-```
-    ```csharp C#
-    using System;
-    using System.IO;
-    using System.Net.Http;
-    using System.Threading.Tasks;
-    using Newtonsoft.Json; // Make sure to add Newtonsoft.Json through NuGet
-
-    class Program
-    {
-        private static readonly string ApiEndpoint = "http://api.autocaption.io/v1";
-        private static readonly string ApiKey = "YOUR_API_KEY";
-        private static readonly string VideoName = "video.mp4";
-        private static readonly string VideoLang = "fr";
-        private static readonly string VideoPath = Path.Combine("./", VideoName);
-
-        static async Task Main(string[] args)
-        {
-            try
-            {
-                using (var httpClient = new HttpClient())
-                {
-                    httpClient.BaseAddress = new Uri(ApiEndpoint);
-                    httpClient.DefaultRequestHeaders.Add("x-api-key", ApiKey);
-
-                    var signedUrlData = await GetSignedUrlData(httpClient);
-                    await UploadVideo(httpClient, signedUrlData.Url, signedUrlData.Fields);
-                    var transcriptResponse = await TranscriptVideo(httpClient, signedUrlData.File, VideoLang);
-                    var jobId = transcriptResponse.JobId;
-
-                    // Initial check without delay
-                    var transcriptStatus = await GetTranscriptStatus(httpClient, jobId);
-
-                    // Loop until the transcript is ready or an error occurs
-                    while (transcriptStatus.Status != "COMPLETED")
-                    {
-                        if (transcriptStatus.Status == 'FAILED')
-                        {
-                            throw new Exception('Transcription failed');
-                        }
-                        await Task.Delay(5000); // Wait for 5 seconds
-                        transcriptStatus = await GetTranscriptStatus(httpClient, jobId);
-                    }
-
-                    // Get the template DEFAULT
-                    var templateResponse = await GetTemplateById(httpClient, "0");
-
-                    // Generate the video and wait for the download url - Can take a few minutes
-                    var generateResponse = await GenerateVideo(httpClient, signedUrlData.File, templateResponse.Config, transcriptStatus.Words);
-                    Console.WriteLine(generateResponse.DownloadUrl);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"An error occurred: {ex.Message}");
-            }
-        }
-
-        private static async Task<dynamic> GetSignedUrlData(HttpClient httpClient)
-        {
-            var response = await httpClient.GetAsync($"/signedUrl?file={VideoName}");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject(content);
-        }
-
-        private static async Task UploadVideo(HttpClient httpClient, string url, dynamic fields)
-        {
-            using (var content = new MultipartFormDataContent())
-            {
-                foreach (var field in fields)
-                {
-                    content.Add(new StringContent(field.Value.ToString()), field.Key);
-                }
-
-                using (var fileStream = new FileStream(VideoPath, FileMode.Open, FileAccess.Read))
-                {
-                    content.Add(new StreamContent(fileStream), "file", VideoName);
-                    var response = await httpClient.PostAsync(url, content);
-                    response.EnsureSuccessStatusCode();
-                }
-            }
-        }
-
-        private static async Task<dynamic> TranscriptVideo(HttpClient httpClient, string fileKey, string lang)
-        {
-            var response = await httpClient.PostAsync("/transcript", new StringContent(JsonConvert.SerializeObject(new { input = fileKey, language = lang }), System.Text.Encoding.UTF8, "application/json"));
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject(content);
-        }
-
-        private static async Task<dynamic> GetTranscriptStatus(HttpClient httpClient, string jobId)
-        {
-            var response = await httpClient.GetAsync($"/transcript/{jobId}");
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject(content);
-        }
-
-        private static async Task<dynamic> GetTemplateById(HttpClient httpClient, string id)
-        {
-            var response = await httpClient.GetAsync($"/templates/{id}");
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject(content);
-        }
-
-        private static async Task<dynamic> GenerateVideo(HttpClient httpClient, string file, dynamic config, dynamic words)
-        {
-            var response = await httpClient.PostAsync("/generate", new StringContent(JsonConvert.SerializeObject(new { input = file, config, words }), System.Text.Encoding.UTF8, "application/json"));
-            response.EnsureSuccessStatusCode();
-            var content = await response.Content.ReadAsStringAsync();
-            return JsonConvert.DeserializeObject(content);
-        }
-    }    
 ```
   </CodeGroup>
