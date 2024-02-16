@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "AutoCaption API",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
+    "description": "An API to use AutoCaption's services for video transcription and video generation with captions.",
     "license": {
       "name": "MIT"
     },
@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "https://api.autocaption.io/v1"
+      "url": "http://api.autocaption.com/v1"
     }
   ],
   "security": [
@@ -19,9 +19,9 @@
     }
   ],
   "paths": {
-    "/upload": {
+    "/signedUrl": {
       "get": {
-        "summary": "Upload file",
+        "summary": "GET signed url to upload the video",
         "description": "Returns a unique file identifier, a URL, and fields required for uploading a file to S3.",
         "parameters": [
           {
@@ -268,7 +268,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "url": {
+                    "download_url": {
                       "type": "string",
                       "description": "Direct URL to download the generated file."
                     }
@@ -330,18 +330,18 @@
       },
       "v1_transcript_body": {
         "required": [
-          "fileName",
+          "input",
           "lang"
         ],
         "type": "object",
         "properties": {
-          "fileName": {
+          "input": {
             "type": "string",
-            "description": "The name of the file to be transcribed, including its extension."
+            "description": "The key returned by the signedUrl."
           },
           "lang": {
             "type": "string",
-            "description": "The language code of the audio in the file."
+            "description": "The language code of the video"
           }
         }
       },
@@ -406,9 +406,13 @@
       "TemplateDetail": {
         "type": "object",
         "properties": {
-          "text": {
+          "id": {
             "type": "string",
-            "description": "The display text of the template."
+            "description": "The id of the template."
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the template."
           },
           "config": {
             "$ref": "#/components/schemas/TemplateConfig"
@@ -424,6 +428,9 @@
           "modes": {
             "$ref": "#/components/schemas/TemplateModes"
           },
+          "sizes": {
+            "$ref": "#/components/schemas/TemplateSizes"
+          },
           "linesCount": {
             "type": "integer"
           },
@@ -431,6 +438,9 @@
             "type": "integer"
           },
           "wordHasBackground": {
+            "type": "boolean"
+          },
+          "wordHasPunctuation": {
             "type": "boolean"
           },
           "wordHasShadow": {
@@ -526,6 +536,29 @@
             "$ref": "#/components/schemas/DisplayEmojiEnum"
           }
         }
+      },
+      "TemplateSizes": {
+        "type": "object",
+        "properties": {
+          "fontSize": {
+            "type": "integer"
+          },
+          "strokeSize": {
+            "type": "integer"
+          },
+          "blurSize": {
+            "type": "integer"
+          },
+          "emojiSize": {
+            "type": "integer"
+          },
+          "backgroundRadius": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fontSize"
+        ]
       },
       "DisplayModeEnum": {
         "type": "string",

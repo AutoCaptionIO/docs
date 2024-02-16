@@ -25,8 +25,7 @@
     "name": "Sign up",
     "url": "https://app.autocaption.io/login"
   },
-  "tabs": [
-  ],
+  "tabs": [],
   "anchors": [
     {
       "name": "API Reference",
@@ -50,28 +49,28 @@
     {
       "group": "File Endpoint",
       "pages": [
-        "api-reference/get-signed-url-to-upload-the-video",
-        "api-reference/generate-video"
+        "api-reference/endpoint/get-signed-url-to-upload-the-video",
+        "api-reference/endpoint/generate-video"
       ]
     },
     {
       "group": "Transcription Endpoint",
       "pages": [
-        "api-reference/transcript-a-video",
-        "api-reference/get-transcription-result"
+        "api-reference/endpoint/transcript-a-video",
+        "api-reference/endpoint/get-transcription-result"
       ]
     },
     {
       "group": "Templates Endpoint",
       "pages": [
-        "api-reference/get-templates",
-        "api-reference/get-specific-template"
+        "api-reference/endpoint/get-templates",
+        "api-reference/endpoint/get-specific-template"
       ]
     },
     {
       "group": "Fonts Endpoint",
       "pages": [
-        "api-reference/get-fonts-list"
+        "api-reference/endpoint/get-fonts-list"
       ]
     }
   ],
