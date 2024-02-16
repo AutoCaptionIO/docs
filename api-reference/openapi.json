@@ -21,7 +21,7 @@
   "paths": {
     "/signedUrl": {
       "get": {
-        "summary": "GET signed url to upload the video",
+        "summary": "GET signed url to upload",
         "description": "Returns a unique file identifier, a URL, and fields required for uploading a file to S3.",
         "parameters": [
           {
