@@ -135,9 +135,10 @@ main();
 import requests
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 import os
+import time
 
 API_ENDPOINT = 'https://api.autocaption.io/v1'
-API_KEY = 'YOUR_API_KEY'
+API_KEY = 'e096dd889efd4cc3afdb4ba8d3a51046'
 
 video_name = 'video.mp4'
 video_lang = 'fr'
@@ -152,10 +153,12 @@ def get_signed_url_data():
 
 # Upload video to signed url
 def upload_video(url, fields):
-    m = MultipartEncoder(fields=fields)
-    m.fields['file'] = (video_name, open(video_path, 'rb'), 'video/mp4')
-    response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
-    response.raise_for_status()
+    with open(video_path, 'rb') as f:
+        fields['file'] = (video_name, f, 'video/mp4')
+        m = MultipartEncoder(fields=fields)
+        response = requests.post(url, data=m, headers={'Content-Type': m.content_type})
+        print(response.text)
+        response.raise_for_status()
 
 # Transcript video
 def transcript_video(file_key, lang):
@@ -194,7 +197,7 @@ def main():
         url = signed_url_data['url']
         fields = signed_url_data['fields']
         upload_video(url, fields)
-        print('file uploaded')
+        print('file uploaded ' + file)
         transcript_response = transcript_video(file, video_lang)
         job_id = transcript_response['job_id']
 
@@ -202,10 +205,9 @@ def main():
         transcript_status = get_transcript_status(job_id)
 
         # Loop until the transcript is ready or an error occurs
-        while transcript_status['status'] != 'COMPLETED':
-            if transcript_status['status'] == 'FAILED':
+        while 'status' not in transcript_status or transcript_status['status'] != 'COMPLETED':
+            if 'status' in transcript_status and transcript_status['status'] == 'FAILED':
                 raise Exception('Transcription failed')  # Throws an error to exit the loop and catch block
-
             time.sleep(5)  # Wait for 5 seconds
             transcript_status = get_transcript_status(job_id)  # Update the response
 
